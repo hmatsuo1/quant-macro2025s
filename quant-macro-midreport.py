@@ -12,16 +12,31 @@ data = pwt90[
     pwt90['year'].between(1970, 2010)
 ]
 
+#各カラムの説明
+# countrycode: 国コード
+# country: 国名
+# year: 年
+# rgdpna: 実質GDP (Y)
+# rkna: 実質資本ストック (K)
+# pop: 人口
+# emp: 就業者数
+# avh: 就業者一人当たりの年間平均労働時間
+# labsh: 労働分配率
+# rtfpna: 効率的生産性(全要素生産性TFPインデックス)
+
 relevant_cols = ['countrycode', 'country', 'year', 'rgdpna', 'rkna', 'pop', 'emp', 'avh', 'labsh', 'rtfpna']
-data = data[relevant_cols].dropna()
+data = data[relevant_cols].dropna() # 欠損値を削除
 
 # Calculate additional variables
-data['alpha'] = 1 - data['labsh']
-data['y_n'] = data['rgdpna'] / data['emp']  # Y/N
-data['hours'] = data['emp'] * data['avh']  # L
+data['alpha'] = 1 - data['labsh'] #αは資本ストックにかかってる
+data['y_n'] = data['rgdpna'] / data['emp']  # Y/N 一人当たりGDP
+data['hours'] = data['emp'] * data['avh']  # L 就業者数×平均労働時間
+
+#以下では Y＝AK^αL^(1-α) を Y/L＝A(K/L)^α という形に変形したくない? なぜ違う形になっているのか考えろ
 data['tfp_term'] = data['rtfpna'] ** (1 / (1 - data['alpha']))  # A^(1/(1-alpha))
 data['cap_term'] = (data['rkna'] / data['rgdpna']) ** (data['alpha'] / (1 - data['alpha']))  # (K/Y)^(alpha/(1-alpha))
 data['lab_term'] = data['hours'] / data['pop']  # L/N
+# データを年でソート、.iloc[0]で整列したデータの1つ目に言及
 data = data.sort_values('year').groupby('countrycode').apply(lambda x: x.assign(
     alpha=1 - x['labsh'],
     y_n_shifted=100 * x['y_n'] / x['y_n'].iloc[0],
@@ -43,12 +58,12 @@ def calculate_growth_rates(country_data):
 
     g_y = ((end_data['y_n'] / start_data['y_n']) ** (1/years) - 1) * 100
 
-    g_k = ((end_data['cap_term'] / start_data['cap_term']) ** (1/years) - 1) * 100
+    g_k = ((end_data['cap_term'] / start_data['cap_term']) ** (1/years) - 1) * 100 # 資本深化の定義は k＝K/L コードおかしくないか？
 
     g_a = ((end_data['tfp_term'] / start_data['tfp_term']) ** (1/years) - 1) * 100
 
     alpha_avg = (start_data['alpha'] + end_data['alpha']) / 2.0
-    capital_deepening_contrib = alpha_avg * g_k
+    capital_deepening_contrib = alpha_avg * g_k # 資本深化の寄与度 
     tfp_growth_calculated = g_a
 
     tfp_share = (tfp_growth_calculated / g_y)
