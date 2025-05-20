@@ -2,12 +2,11 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-# 対象国とファイル名
+# 対象国とファイル名 今回データは1950-2000年のものを使用
 countries = {
-    "Japan": "Japan_PWT1990.csv",
-    "United States": "United_States_PWT1990.csv",
-    "Germany": "Germany_PWT1990.csv",
-    "Korea, Rep.": "Korea_Rep._PWT1990.csv"
+    "Japan": "Japan_PWT1950-2000.csv",
+    "United States": "United_States_PWT1950-2000.csv",
+    "Germany": "Germany_PWT1950-2000.csv",
 }
 
 alpha = 0.33  # 資本の所得分配率
