@@ -42,7 +42,7 @@ results = pd.DataFrame({
 print(results)
 
 # 表の出力
-fig, ax = plt.subplots(figsize=(5, 2))
+fig, ax = plt.subplots(figsize=(6, 2.5))
 ax.axis('off')
 table = ax.table(cellText=results.values,
                  colLabels=results.columns,
@@ -51,8 +51,9 @@ table = ax.table(cellText=results.values,
                  loc='center')
 table.auto_set_font_size(False)
 table.set_fontsize(12)
-table.scale(1.2, 1.2)
-plt.title('標準偏差と日本との相関係数', pad=20)
+table.scale(1.4, 1.4)
+plt.subplots_adjust(left=0.2, right=0.8, top=0.8, bottom=0.2)
+plt.title('両国の標準偏差と相関係数', pad=20)
 plt.show()
 
 # 循環変動成分の時系列データをプロット
