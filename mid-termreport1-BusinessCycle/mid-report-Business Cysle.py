@@ -10,7 +10,7 @@ import matplotlib.font_manager as fm
 start_date = '1955-01-01'
 end_date = '2022-01-01'
 
-# 今回はイタリアを選択、日本とイタリアの実質GDPデータをFREDから取得
+# 1.今回はイタリアを選択、日本とイタリアの実質GDPデータをFREDから取得
 japan_gdp = web.DataReader('JPNRGDPEXP', 'fred', start_date, end_date)
 italy_gdp = web.DataReader('CLVMNACSCAB1GQIT', 'fred', start_date, end_date)
 
@@ -18,29 +18,30 @@ italy_gdp = web.DataReader('CLVMNACSCAB1GQIT', 'fred', start_date, end_date)
 log_japan_gdp = np.log(japan_gdp)
 log_italy_gdp = np.log(italy_gdp)
 
-# HPフィルターを適用（λ=1600,cycle:循環変動成分, trend:トレンド成分）
+# 2.HPフィルターを適用（λ=1600,cycle:循環変動成分, trend:トレンド成分）
 cycle_japan, trend_japan = sm.tsa.filters.hpfilter(log_japan_gdp, lamb=1600)
 cycle_italy, trend_italy = sm.tsa.filters.hpfilter(log_italy_gdp, lamb=1600)
 
-# 循環変動成分の標準偏差を計算
+# 3.循環変動成分の標準偏差を計算
 std_japan = cycle_japan.std()
 std_italy = cycle_italy.std()
 
 # 相関係数を計算
 corr = cycle_japan.corr(cycle_italy)
 
-# 日本語フォント設定（Windowsの場合）
-font_path = "C:/Windows/Fonts/msgothic.ttc"  # または 'meiryo.ttc'
+# 日本語フォント設定
+font_path = "C:/Windows/Fonts/msgothic.ttc"
 jp_font = fm.FontProperties(fname=font_path)
 plt.rcParams['font.family'] = jp_font.get_name()
 
-# 結果の表を作成
+# 結果を表示
 results = pd.DataFrame({
     '標準偏差': [std_japan, std_italy],
     '日本との相関係数': [1.0, corr]
 }, index=['日本', 'イタリア']).round(4)
+print(results)
 
-# 表を画像としてプロット
+# 表の出力
 fig, ax = plt.subplots(figsize=(5, 2))
 ax.axis('off')
 table = ax.table(cellText=results.values,
@@ -54,7 +55,7 @@ table.scale(1.2, 1.2)
 plt.title('標準偏差と日本との相関係数', pad=20)
 plt.show()
 
-# 循環変動成分の時系列データを1つのグラフにプロット
+# 循環変動成分の時系列データをプロット
 plt.figure(figsize=(12,6))
 plt.plot(cycle_japan, label='日本')
 plt.plot(cycle_italy, label='イタリア')
