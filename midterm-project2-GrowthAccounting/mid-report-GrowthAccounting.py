@@ -1,83 +1,117 @@
-#とりあえずeconomic grouwthをパクってきた
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
+# PWT9.0 データの読み込み
 pwt90 = pd.read_stata('https://www.rug.nl/ggdc/docs/pwt90.dta')
 
+# 図5.1よりOECD諸国
 oecd_countries = [
-    'United Kingdom', 'United States',
+    'Australia', 'Austria', 'Belgium', 'Canada', 'Denmark', 'Finland', 'France',
+    'Germany', 'Greece', 'Iceland', 'Ireland', 'Italy', 'Japan', 'Netherlands',
+    'New Zealand', 'Norway', 'Portugal', 'Spain', 'Sweden', 'Switzerland',
+    'United Kingdom', 'United States'
 ]
 
+# 分析対象期間（1990-2019）
 data = pwt90[
     pwt90['country'].isin(oecd_countries) &
-    pwt90['year'].between(1970, 2010)
+    pwt90['year'].between(1990, 2019)
 ]
 
-relevant_cols = ['countrycode', 'country', 'year', 'rgdpna', 'rkna', 'pop', 'emp', 'avh', 'labsh', 'rtfpna']
-data = data[relevant_cols].dropna()
+# 用いるカラム
+# country: 国名
+# year: 年
+# rgdpna: 実質GDP (Y)
+# rkna: 実質資本ストック (K)
+# pop: 人口
+# emp: 就業者数
+# avh: 就業者一人当たりの年間平均労働時間
+# labsh: 労働分配率 [0,1]
+# rtfpna: 効率的生産性(全要素生産性TFPインデックス)
+cols = ['country', 'year', 'rgdpna', 'rkna', 'pop', 'emp', 'avh', 'labsh', 'rtfpna']
+data = data[cols].dropna()
 
-# Calculate additional variables
+# 労働時間とα（資本分配率）の計算
+data['hours'] = data['emp'] * data['avh']
 data['alpha'] = 1 - data['labsh']
-data['y_n'] = data['rgdpna'] / data['emp']  # Y/N
-data['hours'] = data['emp'] * data['avh']  # L
-data['tfp_term'] = data['rtfpna'] ** (1 / (1 - data['alpha']))  # A^(1/(1-alpha))
-data['cap_term'] = (data['rkna'] / data['rgdpna']) ** (data['alpha'] / (1 - data['alpha']))  # (K/Y)^(alpha/(1-alpha))
-data['lab_term'] = data['hours'] / data['pop']  # L/N
-data = data.sort_values('year').groupby('countrycode').apply(lambda x: x.assign(
-    alpha=1 - x['labsh'],
-    y_n_shifted=100 * x['y_n'] / x['y_n'].iloc[0],
-    tfp_term_shifted=100 * x['tfp_term'] / x['tfp_term'].iloc[0],
-    cap_term_shifted=100 * x['cap_term'] / x['cap_term'].iloc[0],
-    lab_term_shifted=100 * x['lab_term'] / x['lab_term'].iloc[0]
-)).reset_index(drop=True).dropna()
 
-
-def calculate_growth_rates(country_data):
-    
-    start_year_actual = country_data['year'].min()
-    end_year_actual = country_data['year'].max()
-
-    start_data = country_data[country_data['year'] == start_year_actual].iloc[0]
-    end_data = country_data[country_data['year'] == end_year_actual].iloc[0]
-
-    years = end_data['year'] - start_data['year']
-
-    g_y = ((end_data['y_n'] / start_data['y_n']) ** (1/years) - 1) * 100
-
-    g_k = ((end_data['cap_term'] / start_data['cap_term']) ** (1/years) - 1) * 100
-
-    g_a = ((end_data['tfp_term'] / start_data['tfp_term']) ** (1/years) - 1) * 100
-
-    alpha_avg = (start_data['alpha'] + end_data['alpha']) / 2.0
-    capital_deepening_contrib = alpha_avg * g_k
-    tfp_growth_calculated = g_a
-    
-    tfp_share = (tfp_growth_calculated / g_y)
-    cap_share = (capital_deepening_contrib / g_y)
-
-    return {
-        'Country': start_data['country'],
+# 成長会計の計算関数
+def calculate_growth_rates(df):
+    df = df.sort_values('year')
+    year_diff = df['year'].iloc[-1] - df['year'].iloc[0]
+    g_y = (np.log(df['rgdpna'].iloc[-1]/df['rgdpna'].iloc[0])) / year_diff * 100
+    g_k = (np.log(df['rkna'].iloc[-1]/df['rkna'].iloc[0])) / year_diff * 100
+    g_a = (np.log(df['rtfpna'].iloc[-1]/df['rtfpna'].iloc[0])) / year_diff * 100
+    alpha_mean = df['alpha'].mean()
+    cap_deep = alpha_mean * g_k
+    tfp_share = g_a / g_y if g_y != 0 else np.nan
+    cap_share = cap_deep / g_y if g_y != 0 else np.nan
+    return pd.Series({
         'Growth Rate': round(g_y, 2),
-        'TFP Growth': round(tfp_growth_calculated, 2),
-        'Capital Deepening': round(capital_deepening_contrib, 2),
+        'TFP Growth': round(g_a, 2),
+        'Capital Deepening': round(cap_deep, 2),
         'TFP Share': round(tfp_share, 2),
         'Capital Share': round(cap_share, 2)
-    }
+    })
+
+# 各国の成長会計
+results = data.groupby('country').apply(calculate_growth_rates).reset_index()
+
+# 平均行の追加
+avg_row = results.mean(numeric_only=True).round(2).to_dict()
+avg_row['country'] = 'Average'
+results = pd.concat([results, pd.DataFrame([avg_row])], ignore_index=True)
+
+# 表の表示設定
+def display_growth_table(results):
+    fig, ax = plt.subplots(figsize=(10, len(results)*0.3 + 2.0))
+    ax.axis('off')
+
+    # タイトル
+    ax.text(0, 0.8, 'Growth Accounting in OECD Countries: 1990-2019', transform=ax.transAxes,
+            fontsize=14, fontweight='bold', va='bottom', ha='left')
+
+    # 表の作成
+    table = ax.table(
+        cellText=results.round(2).values,
+        colLabels=results.columns,
+        loc='center',
+        cellLoc='center',
+        colLoc='center',
+        edges='open'  
+    )
+
+    # フォントサイズと行間調整
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+
+    # 正しい行インデックス指定
+    header_row = 0
+    average_row = len(results)
+
+    # セルデザインの調整
+    for (row, col), cell in table.get_celld().items():
+        cell.set_linewidth(0) 
+        cell.set_edgecolor('black')
+        cell.PAD = 2.0  
+
+        if row == header_row:
+            cell.set_text_props(weight='bold')
+            cell.set_facecolor('#f2f2f2')
+            cell.set_linewidth(0.8)
+            cell.visible_edges = 'T'
+            cell.visible_edges += 'B'
+
+        if row == average_row:
+            cell.set_linewidth(0.8)
+            cell.visible_edges = 'T'
+            cell.visible_edges += 'B'
+
+    plt.show()
+
+# 表を出力
+display_growth_table(results)
 
 
-results_list = data.groupby('country').apply(calculate_growth_rates).dropna().tolist()
-results_df = pd.DataFrame(results_list)
 
-avg_row_data = {
-    'Country': 'Average',
-    'Growth Rate': round(results_df['Growth Rate'].mean(), 2),
-    'TFP Growth': round(results_df['TFP Growth'].mean(), 2),
-    'Capital Deepening': round(results_df['Capital Deepening'].mean(), 2),
-    'TFP Share': round(results_df['TFP Share'].mean(), 2),
-    'Capital Share': round(results_df['Capital Share'].mean(), 2)
-}
-results_df = pd.concat([results_df, pd.DataFrame([avg_row_data])], ignore_index=True)
-
-print("\nGrowth Accounting in OECD Countries: 1970-2010 period")
-print("="*85)
-print(results_df.to_string(index=False))
