@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 pwt90 = pd.read_stata('https://www.rug.nl/ggdc/docs/pwt90.dta')
 
 # Table5.1よりOECD諸国
-oecd_countries = [
+oecd_countries = [ 
     'Australia', 'Austria', 'Belgium', 'Canada', 'Denmark', 'Finland', 'France',
     'Germany', 'Greece', 'Iceland', 'Ireland', 'Italy', 'Japan', 'Netherlands',
     'New Zealand', 'Norway', 'Portugal', 'Spain', 'Sweden', 'Switzerland',
@@ -40,17 +40,16 @@ data['alpha'] = 1 - data['labsh']
 def calculate_growth_rates(df):
     df = df.sort_values('year')
     year_diff = df['year'].iloc[-1] - df['year'].iloc[0]
-    
     g_y = (np.log(df['rgdpna'].iloc[-1]/df['rgdpna'].iloc[0])) / year_diff * 100  # 実質GDPの成長率
     g_k = (np.log(df['rkna'].iloc[-1]/df['rkna'].iloc[0])) / year_diff * 100      # 実質資本ストックの成長率
     g_a = (np.log(df['rtfpna'].iloc[-1]/df['rtfpna'].iloc[0])) / year_diff * 100  # TFPの成長率
-    g_l = (np.log(df['hours'].iloc[-1]/df['hours'].iloc[0])) / year_diff * 100    # 労働（就業者数×労働時間）の成長率
+    g_l = (np.log(df['hours'].iloc[-1]/df['hours'].iloc[0])) / year_diff * 100    # 労働の成長率
 
     alpha_mean = df['alpha'].mean()
     cap_deep = alpha_mean * (g_k - g_l)  
 
     tfp_share = g_a / g_y if g_y != 0 else np.nan
-    cap_share = g_k / g_y if g_y != 0 else np.nan
+    cap_share = cap_deep / g_y if g_y != 0 else np.nan
 
     return pd.Series({
         'Growth Rate': round(g_y, 2),
