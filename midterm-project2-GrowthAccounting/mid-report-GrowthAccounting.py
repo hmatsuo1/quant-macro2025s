@@ -1,7 +1,6 @@
+from matplotlib import pyplot as plt
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-
 # PWT9.0 データの読み込み
 pwt90 = pd.read_stata('https://www.rug.nl/ggdc/docs/pwt90.dta')
 
@@ -19,40 +18,37 @@ data = pwt90[
     pwt90['year'].between(1990, 2019)
 ]
 
-# 用いるカラム
-# country: 国名
-# year: 年
-# rgdpna: 実質GDP (Y)
-# rkna: 実質資本ストック (K)
-# emp: 就業者数
-# avh: 就業者一人当たりの年間平均労働時間
-# hc: 人的資本（平均年齢での教育水準）
-# labsh: 労働分配率 [0,1]
-
-cols = ['country', 'year', 'rgdpna', 'rkna', 'emp', 'avh','hc', 'labsh']
+# 使用カラム（人的資本 'hc' は使わない）
+cols = ['country', 'year', 'rgdpna', 'rkna', 'emp', 'avh', 'labsh']
 data = data[cols].dropna()
 
-# 労働時間とα（資本分配率）の計算
-data['labor_eff'] = data['emp'] * data['avh'] * data['hc']  # 人的資本の水準(一人当たり労働時間×教育水準)×労働者数
-data['alpha'] = 1 - data['labsh']  
+# 労働投入：就業者数 × 労働時間
+data['labor'] = data['emp'] * data['avh'] 
 
-# 成長会計の計算関数（TFPは残差から求める）
+# 労働者一人あたりの実質GDP
+data['y_per_worker'] = data['rgdpna'] / data['labor']  
+
+# 資本シェア：α = 1 - 労働分配率
+data['alpha'] = 1 - data['labsh']
+
+# 成長会計の計算関数
 def calculate_growth_rates(df):
     df = df.sort_values('year')
     year_diff = df['year'].iloc[-1] - df['year'].iloc[0]
 
-    # 成長率計算
-    g_y = (np.log(df['rgdpna'].iloc[-1]/df['rgdpna'].iloc[0])) / year_diff * 100       # 実質GDPの成長率
-    g_k = (np.log(df['rkna'].iloc[-1]/df['rkna'].iloc[0])) / year_diff * 100           # 実質資本ストックの成長率
-    g_l = (np.log(df['labor_eff'].iloc[-1]/df['labor_eff'].iloc[0])) / year_diff * 100 # 労働の成長率（人的資本を考慮）
+    g_y = (np.log(df['y_per_worker'].iloc[-1] / df['y_per_worker'].iloc[0])) / year_diff * 100
+    g_k = (np.log(df['rkna'].iloc[-1] / df['rkna'].iloc[0])) / year_diff * 100
+    g_l = (np.log(df['labor'].iloc[-1] / df['labor'].iloc[0])) / year_diff * 100
 
     alpha_mean = df['alpha'].mean()
 
-    # 成長率の分解に基づくTFP（残差として計算）
-    g_a = g_y - alpha_mean * (g_k - g_l) - (1 - alpha_mean) * g_l # TFPの成長率
+    # TFP成長率：残差（Solow residual）
+    g_a = g_y - alpha_mean * (g_k - g_l)
 
-    # 寄与分
+    # 資本深化の寄与
     cap_deep = alpha_mean * (g_k - g_l)
+
+    # 寄与率
     tfp_share = g_a / g_y if g_y != 0 else np.nan
     cap_share = cap_deep / g_y if g_y != 0 else np.nan
 
@@ -71,6 +67,7 @@ results = data.groupby('country').apply(calculate_growth_rates).reset_index()
 avg_row = results.mean(numeric_only=True).round(2).to_dict()
 avg_row['country'] = 'Average'
 results = pd.concat([results, pd.DataFrame([avg_row])], ignore_index=True)
+
 
 # 表の表示設定 (Table5.1を再現、長すぎるため関数にしてトグル表示)
 def display_growth_table(results):
